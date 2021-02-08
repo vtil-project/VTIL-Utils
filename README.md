@@ -2,6 +2,8 @@
 
 VTIL command line utility.
 
+**You can download the latest version from the [AppVeyor artifacts](https://ci.appveyor.com/project/can1357/vtil-utils/build/artifacts).**
+
 ## Building
 
 ```sh
