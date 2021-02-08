@@ -11,6 +11,7 @@ using namespace vtil::logger;
 int main(int argc, const char** argv)
 {
 	args::ArgumentParser parser("VTIL command line utility");
+	args::CompletionFlag completion(parser, { "complete" });
 	parser.Add(commands());
 
 	args::Group arguments("Arguments");
@@ -28,11 +29,16 @@ int main(int argc, const char** argv)
 	{
 		parser.ParseCLI(argc, argv);
 	}
-	catch (args::Help&)
+	catch (const args::Completion& e)
+	{
+		std::cout << e.what();
+		return 0;
+	}
+	catch (const args::Help&)
 	{
 		showHelp();
 	}
-	catch (std::exception& e)
+	catch (const std::exception& e)
 	{
 		log<CON_RED>("[*] Error: %s\n\n", e.what());
 		showHelp();
