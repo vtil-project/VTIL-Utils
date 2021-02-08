@@ -1,0 +1,15 @@
+version: 1.0.{build}
+image: Visual Studio 2019
+build_script:
+- cmd: mkdir build && cd build
+- cmd: cmake ..
+- cmd: cmake --build . --config Release
+test_script:
+- cmd: set PATH=%CD%\Release;%PATH%
+- cmd: cd ..\examples
+- cmd: vtil lift hello.exe __security_init_cookie.vtil 140001694
+- cmd: vtil opt __security_init_cookie.vtil __security_init_cookie.opt.vtil
+- cmd: vtil dump __security_init_cookie.opt.vtil
+artifacts:
+  - path: build\Release\vtil.exe
+    name: vtil
