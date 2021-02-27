@@ -25,11 +25,11 @@ static args::Command lift(commands(), "lift", "Lift a .vtil file", [](args::Subp
 	std::vector<uint8_t> pe_bytes(pe_start, pe_end);
 
 	pe_image image{ pe_bytes };
+	if (!image.is_valid() || !image.is_pe64())
+		fatal("Image is not a 64-bit PE file");
+
 	if (addr < image.get_image_base() || addr >= image.get_image_base() + image.get_image_size())
 		fatal("Address 0x%llx not inside image", addr);
-
-	if (!image.is_pe64())
-		fatal("Image is not a 64-bit PE file");
 
 	pe_input pe_vtil{ image };
 	using amd64_recursive_descent = lifter::recursive_descent<pe_input, lifter::amd64::lifter_t>;
