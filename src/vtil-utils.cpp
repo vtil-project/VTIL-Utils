@@ -1,9 +1,35 @@
 #include "vtil-utils.hpp"
 
+namespace fs = std::filesystem;
+
 args::Group& commands()
 {
 	static args::Group instance("Commands");
 	return instance;
+}
+
+std::vector<std::filesystem::path> enum_vtil_files(const std::filesystem::path& path)
+{
+	std::vector<fs::path> files;
+	if(fs::is_directory(path))
+	{
+		for (const auto& entry : fs::recursive_directory_iterator(path))
+		{
+			if(!entry.is_regular_file())
+				continue;
+
+			const auto& p = entry.path();
+			if(p.extension() == ".vtil")
+			{
+				files.push_back(p);
+			}
+		}
+	}
+	else
+	{
+		files.push_back(path);
+	}
+	return files;
 }
 
 using namespace vtil::logger;

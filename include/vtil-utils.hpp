@@ -5,6 +5,9 @@
 
 #include <args.hxx>
 
+#include <filesystem>
+#include <vector>
+
 // Some extensions for the arguments library
 namespace args
 {
@@ -62,3 +65,5 @@ inline void fatal(const char* fmt, Args&&... args)
 		str.pop_back();
 	throw std::runtime_error(str);
 }
+
+std::vector<std::filesystem::path> enum_vtil_files(const std::filesystem::path& path);
