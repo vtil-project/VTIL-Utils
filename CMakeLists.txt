@@ -18,12 +18,19 @@ list(PREPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 # Enable solution folder support
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
+# Workaround for https://github.com/cpm-cmake/CPM.cmake/issues/281
+set(CPM_SOURCE_CACHE OFF CACHE BOOL "" FORCE)
+
+# Hack for working Debug configuration
+add_definitions(-DVTIL_SYMEX_VERIFY=0)
+
 # Dependency packages
 set(CMAKE_FOLDER "Dependencies")
 include(CPM)
 include(VTIL-Core)
 include(VTIL-NativeLifters)
 include(args)
+include(asmjit)
 
 # Target to generate third_party.txt
 set(DEPENDENCY_PACKAGES "${CPM_PACKAGES}")
@@ -46,6 +53,7 @@ source_group(TREE ${PROJECT_SOURCE_DIR} FILES ${SOURCES})
 target_link_libraries(${PROJECT_NAME} PRIVATE
     NativeLifters-Core
     args
+	asmjit::asmjit
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE include)
