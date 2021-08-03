@@ -596,7 +596,11 @@ static args::Command command_compile(commands(), "compile", "Compile a .vtil fil
 	parser.Parse();
 
 	// Command implementation
-	auto rtn = vtil::load_routine(input.Get());
+	vtil::routine* rtn = vtil::load_routine(input.Get());
+
+	vtil::basic_block* bb = rtn->find_block(0x13df89);
+	vtil::instruction kurwa(&vtil::ins::str, vtil::REG_SP, 0, -0x13000000ull);
+	bb->insert(bb->begin(), kurwa);
 
 	JitRuntime rt;
 	FileLogger logger(stdout);
@@ -610,6 +614,9 @@ static args::Command command_compile(commands(), "compile", "Compile a .vtil fil
 	x86::Compiler cc(&code);
 
 	cc.addFunc(FuncSignatureT<void>());
+
+	vtil::optimizer::stack_propagation_pass pass;
+	pass(rtn);
 
 	/*vtil::optimizer::branch_correction_pass pass;
 	pass(rtn);*/
