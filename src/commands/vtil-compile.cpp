@@ -35,9 +35,11 @@ struct routine_state
 	std::unordered_map<vtil::operand::register_t, x86::Gp> reg_map;
 	x86::Gp flags_reg;
 	x86::Compiler& cc;
+	Imm base_address;
 
-	routine_state(x86::Compiler& cc)
+	routine_state(x86::Compiler& cc, uint64_t base)
 		: cc(cc)
+		, base_address(base)
 	{
 	}
 
@@ -77,7 +79,7 @@ struct routine_state
 	x86::Gp tmp_imm(vtil::operand const& reg)
 	{
 		x86::Gp tmp = reg_for_size(reg);
-		cc.mov(tmp, reg.imm().i64);
+		cc.mov(tmp, reg.imm().ival);
 		return tmp;
 	}
 
@@ -165,7 +167,7 @@ struct routine_state
 				// base addresses
 				//
 				x86::Gp base_reg = reg_for_size(operand);
-				cc.mov(base_reg, Imm(0x140'000'000));
+				cc.mov(base_reg, base_address);				
 				return base_reg;
 			}
 			else if (operand.is_flags())
@@ -200,7 +202,7 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 
 			// FIXME: Figure out how to determine if the offset is signed or not
 			//
-			state->cc.mov(state->get_reg(dest), x86::ptr(state->get_reg(src), offset.i64));
+			state->cc.mov(state->get_reg(dest), x86::ptr(state->get_reg(src), offset.ival));
 		},
 	},
 	{
@@ -219,16 +221,16 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 			switch (v.bit_count())
 			{
 			case 8:
-				dest = x86::ptr_8(reg_base, offset.i64);
+				dest = x86::ptr_8(reg_base, offset.ival);
 				break;
 			case 16:
-				dest = x86::ptr_16(reg_base, offset.i64);
+				dest = x86::ptr_16(reg_base, offset.ival);
 				break;
 			case 32:
-				dest = x86::ptr_32(reg_base, offset.i64);
+				dest = x86::ptr_32(reg_base, offset.ival);
 				break;
 			case 64:
-				dest = x86::ptr_64(reg_base, offset.i64);
+				dest = x86::ptr_64(reg_base, offset.ival);
 				break;
 			default:
 				unreachable();
@@ -236,7 +238,7 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 
 			if (v.is_immediate())
 			{
-				state->cc.mov(dest, v.imm().i64);
+				state->cc.mov(dest, v.imm().ival);
 			}
 			else
 			{
@@ -252,7 +254,7 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 
 			if (src.is_immediate())
 			{
-				state->cc.mov(state->get_reg(dest), src.imm().i64);
+				state->cc.mov(state->get_reg(dest), src.imm().ival);
 			}
 			else
 			{
@@ -269,12 +271,12 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 			if (src.is_immediate())
 			{
 				x86::Gp tmp = state->reg_for_size(src);
-				state->cc.mov(tmp, src.imm().i64);
+				state->cc.mov(tmp, src.imm().ival);
 				state->cc.sub(state->get_reg(dest), tmp);
 
 				// AsmJit shits its pants when I use this, so we move to a temporary
 				// instead. TODO: Investigate
-				// state->cc.sub( state->get_reg( dest ), src.imm().i64 );
+				// state->cc.sub( state->get_reg( dest ), src.imm().ival );
 				//
 			}
 			else
@@ -292,7 +294,7 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 			if (rhs.is_immediate())
 			{
 				x86::Gp tmp = state->reg_for_size(rhs);
-				state->cc.mov(tmp, rhs.imm().i64);
+				state->cc.mov(tmp, rhs.imm().ival);
 				state->cc.add(state->get_reg(lhs), tmp);
 
 				// See note on sub
@@ -318,8 +320,8 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 			//
 			state->cc.test(state->get_reg(cond), state->get_reg(cond));
 
-			state->cc.jnz(state->get_label(dst_1.imm().u64));
-			state->cc.jmp(state->get_label(dst_2.imm().u64));
+			state->cc.jnz(state->get_label(dst_1.imm().uval));
+			state->cc.jmp(state->get_label(dst_2.imm().uval));
 
 			for (vtil::basic_block* destination : it.block->next)
 			{
@@ -334,17 +336,16 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 			vtil::debug::dump(*it);
 			if (it->operands[0].is_register())
 			{
-				vtil::tracer tracer = {};
-				std::vector<vtil::vip_t> destination_list;
-				auto branch_info = vtil::optimizer::aux::analyze_branch(it.block, &tracer, { .pack = true });
-				fassert(branch_info.is_jcc && !branch_info.is_vm_exit);
-				using namespace vtil::logger;
-				log<CON_YLW>("cc: %s\n", branch_info.cc.simplify().to_string());
-				// TODO: handle jmp register
-				for(const auto& dest : branch_info.destinations) {
-					log<CON_YLW>("dest: %s\n", dest.simplify().to_string());
+				const vtil::operand::register_t cond = it->operands[0].reg();
+
+				for (vtil::basic_block* destination : it.block->next)
+				{
+					state->cc.test(state->get_reg(cond), destination->entry_vip);
+					state->cc.jnz(state->get_label(destination->entry_vip));
+
+					if (!state->is_compiled.count(destination->entry_vip))
+						compile(destination, state);
 				}
-				__debugbreak();
 			}
 			else
 			{
@@ -374,7 +375,7 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 			// a call, etc. for the register allocator
 			// if ( it->operands[ 0 ].is_immediate() )
 			// {
-			//     state->cc.jmp( it->operands[ 0 ].imm().u64 );
+			//     state->cc.jmp( it->operands[ 0 ].imm().uval );
 			// }
 			// else
 			// {
@@ -400,7 +401,7 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 
 			if (shift.is_immediate())
 			{
-				state->cc.shl(state->get_reg(dest), shift.imm().i64);
+				state->cc.shl(state->get_reg(dest), shift.imm().ival);
 			}
 			else
 			{
@@ -416,7 +417,7 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 
 			if (shift.is_immediate())
 			{
-				state->cc.shr(state->get_reg(dest), shift.imm().i64);
+				state->cc.shr(state->get_reg(dest), shift.imm().ival);
 			}
 			else
 			{
@@ -448,7 +449,10 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 
 			if (rhs.is_immediate())
 			{
-				state->cc.or_(state->get_reg(lhs), rhs.imm().i64);
+				if (rhs.imm().bit_count == 32)
+					state->cc.or_(state->get_reg(lhs).r32(), rhs.imm().ival);
+				else
+					state->cc.or_(state->get_reg(lhs), rhs.imm().ival);
 			}
 			else
 			{
@@ -464,7 +468,7 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 
 			if (rhs.is_immediate())
 			{
-				state->cc.xor_(state->get_reg(lhs), rhs.imm().i64);
+				state->cc.xor_(state->get_reg(lhs), rhs.imm().ival);
 			}
 			else
 			{
@@ -487,7 +491,7 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 	{
 		ins::vemit,
 		[](const vtil::il_iterator& it, routine_state* state) {
-			auto data = it->operands[0].imm().u64;
+			auto data = it->operands[0].imm().uval;
 			// TODO: Are we guarenteed that the registers used by these
 			// embedded instructions are actually live at the point these are executed?
 			//
@@ -503,7 +507,7 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 			if (instr->operands[1].is_immediate())                                  \
 			{                                                                       \
 				x86::Gp tmp = state->reg_for_size(instr->operands[1]);              \
-				state->cc.mov(tmp, instr->operands[1].imm().i64);                   \
+				state->cc.mov(tmp, instr->operands[1].imm().ival);                   \
 				state->cc.cmp(state->get_reg(instr->operands[2].reg()), tmp);       \
 				state->cc.ropcode(state->get_reg(instr->operands[0].reg()));        \
 			}                                                                       \
@@ -512,7 +516,7 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 				if (instr->operands[2].is_immediate())                              \
 				{                                                                   \
 					x86::Gp tmp = state->reg_for_size(instr->operands[2]);          \
-					state->cc.mov(tmp, instr->operands[2].imm().i64);               \
+					state->cc.mov(tmp, instr->operands[2].imm().ival);               \
 					state->cc.cmp(state->get_reg(instr->operands[1].reg()), tmp);   \
 				}                                                                   \
 				else                                                                \
@@ -550,7 +554,7 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 			if (res.is_immediate())
 			{
 				x86::Gp tmp = state->reg_for_size(res);
-				state->cc.mov(tmp, res.imm().i64);
+				state->cc.mov(tmp, res.imm().ival);
 				state->cc.cmovnz(state->get_reg(dest), tmp);
 			}
 			else
@@ -559,6 +563,18 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 			}
 		},
 	},
+	{ ins::vpinr, [](const vtil::il_iterator& it, routine_state* state)
+		{
+		} },
+	{ ins::vpinw, [](const vtil::il_iterator& it, routine_state* state)
+		{
+		} },
+	{ ins::vpinrm, [](const vtil::il_iterator& it, routine_state* state)
+		{
+		} },
+	{ ins::vpinwm, [](const vtil::il_iterator& it, routine_state* state)
+		{
+		} },
 };
 
 static void compile(vtil::basic_block* basic_block, routine_state* state)
@@ -591,8 +607,7 @@ public:
 
 static args::Command command_compile(commands(), "compile", "Compile a .vtil file", [](args::Subparser& parser) {
 	// Argument handling
-	args::Positional<std::string> input(parser, "input", "Input .vtil file", args::Options::Required);
-	args::Positional<std::string> output(parser, "output", "Output x86-64 file", args::Options::Required);
+	args::Positional<std::string> input(parser, "input", "Input .vtil file", args::Options::Required);	
 	parser.Parse();
 
 	// Command implementation
@@ -611,10 +626,9 @@ static args::Command command_compile(commands(), "compile", "Compile a .vtil fil
 
 	cc.addFunc(FuncSignatureT<void>());
 
-	/*vtil::optimizer::branch_correction_pass pass;
-	pass(rtn);*/
-
-	routine_state state(cc);
+	//TODO is that info available in the .VTIL file?
+	//
+	routine_state state(cc, 0x180'000'000);
 	compile(rtn->entry_point, &state);
 
 	cc.endFunc();
@@ -622,5 +636,17 @@ static args::Command command_compile(commands(), "compile", "Compile a .vtil fil
 
 	CodeBuffer& buffer = code.sectionById(0)->buffer();
 
-	save_routine(rtn, output.Get());
+	std::filesystem::path work_dir = std::filesystem::path(input.Get()).remove_filename() / "compiled/";
+	std::filesystem::create_directory(work_dir);	
+
+	//Thats a hacky way to do it in general, but it supports supplying commands like vtil.exe compile subfolder/file.vtil
+	//
+	work_dir += std::filesystem::path(input.Get()).replace_extension("bin").filename();
+			
+	std::ofstream fs(work_dir, std::ios::binary);
+	if (!fs.is_open())
+		throw std::runtime_error(vtil::format::str("Failed to open bin file '%s'", work_dir));
+
+	fs.write((const char*)buffer.data(), buffer.size());
+	fs.close();
 });
