@@ -340,8 +340,8 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 
 				for (vtil::basic_block* destination : it.block->next)
 				{
-					state->cc.test(state->get_reg(cond), destination->entry_vip);
-					state->cc.jnz(state->get_label(destination->entry_vip));
+					state->cc.cmp(state->get_reg(cond), destination->entry_vip);
+					state->cc.je(state->get_label(destination->entry_vip));
 
 					if (!state->is_compiled.count(destination->entry_vip))
 						compile(destination, state);
@@ -449,8 +449,12 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 
 			if (rhs.is_immediate())
 			{
-				if (rhs.imm().bit_count == 32)
-					state->cc.or_(state->get_reg(lhs).r32(), rhs.imm().ival);
+				if (rhs.imm().bit_count > 32 || rhs.imm().ival > 0x7FFFFFFF)
+				{
+					auto temp_reg = state->cc.newGpq();
+					state->cc.mov(temp_reg, rhs.imm().ival);
+					state->cc.or_(state->get_reg(lhs), temp_reg);
+				}					
 				else
 					state->cc.or_(state->get_reg(lhs), rhs.imm().ival);
 			}
