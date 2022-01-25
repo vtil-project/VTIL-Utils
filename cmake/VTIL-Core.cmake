@@ -1,5 +1,5 @@
 CPMAddPackage(
     NAME VTIL-Core
-    GITHUB_REPOSITORY mrexodia/VTIL-Core
-    GIT_TAG e6debb384cb218caff8cb94f50f00076b994a762
+    GITHUB_REPOSITORY vtil-project/VTIL-Core
+    GIT_TAG 0e1062b61cceea5f43e4238a6c66e0e4afdf5d98
 )
