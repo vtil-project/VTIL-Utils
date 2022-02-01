@@ -64,3 +64,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 
 # Set Visual Studio startup project
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})
+
+# Installation
+install(TARGETS ${PROJECT_NAME})
