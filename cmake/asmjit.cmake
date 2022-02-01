@@ -5,4 +5,5 @@ CPMAddPackage(
     OPTIONS
         "ASMJIT_STATIC ON"
         "ASMJIT_NO_INSTALL ON"
+        "ASMJIT_NO_CUSTOM_FLAGS ON"
 )

@@ -62,5 +62,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     OUTPUT_NAME vtil
 )
 
+#target_link_options(${PROJECT_NAME} PRIVATE /STACK:67108864)
+
 # Set Visual Studio startup project
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})
